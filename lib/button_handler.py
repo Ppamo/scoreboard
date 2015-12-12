@@ -1,4 +1,5 @@
 import config, datetime
+from threading import Timer
 import RPi.GPIO as GPIO
 
 class button_handler(object):
@@ -23,6 +24,7 @@ class button_handler(object):
 		self.c_hold_callbacks = []
 		self.click_callbacks_by_channel = { self.a_pin: self.a_click_callbacks, self.b_pin: self.b_click_callbacks, self.c_pin: self.c_click_callbacks }
 		self.hold_callbacks_by_channel = { self.a_pin: self.a_hold_callbacks, self.b_pin: self.b_hold_callbacks, self.c_pin: self.c_hold_callbacks }
+		self.click_event_timer = {}
 		self.event_delta = datetime.timedelta(milliseconds = 500)
 		self.event_hold_delta = datetime.timedelta(milliseconds = 1000)
 		dummy_event = {'time': datetime.datetime.now(), 'status': -1}
@@ -35,7 +37,7 @@ class button_handler(object):
 				callback()
 
 	def button_callback(self, channel):
-		print "button_callback - channel:{}".format(channel)
+		print "events: button_callback - channel:{}".format(channel)
 
 		# read the channel state
 		channel_state = GPIO.input(channel)
@@ -45,16 +47,15 @@ class button_handler(object):
 		if (channel_state == old_state):
 			return None
 
-		# this value represents the state pressed of the buttons, so I can calcuate if is hold for a while
-		press_state = 0 if (channel == 24) else 1
-
 		# calculate the time of last event triggered and button push
 		now = datetime.datetime.now()
 		delta = now - self.last_triggered_event[channel]['time']
 		hold_delta = now - self.last_pressed_event[channel]['time']
 
 		self.last_pressed_event.update({channel: { 'time': now, 'status': channel_state }})
-		print "A -> channel:{} delta:{} state:{} old_state:{}".format(channel, delta, channel_state, old_state)
+
+		# this value represents the state pressed of the buttons, so I can calcuate if is hold for a while
+		press_state = 0 if (channel == 24) else 1
 
 		# do nothing while the button is pressed
 		if (channel_state == press_state):
@@ -62,15 +63,29 @@ class button_handler(object):
 
 		# trigger the event
 		if delta > self.event_delta:
-			self.last_triggered_event.update({channel: { 'time': now, 'status': 0}})
-			print "({} > {}) == {}".format(hold_delta, self.event_hold_delta, hold_delta > self.event_hold_delta)
 			if hold_delta > self.event_hold_delta:
-				triggered_event = 'hold'
+				self.last_triggered_event.update({channel: { 'time': now, 'status': 1}})
 				self.execute_callbacks(self.hold_callbacks_by_channel[channel])
+				print "events: triggered hold event"
 			else:
-				triggered_event = 'click'
-				self.execute_callbacks(self.click_callbacks_by_channel[channel])
-			print "B -> triggered {} event - hold delta: {}".format(triggered_event, hold_delta)
+				if channel in self.click_event_timer:
+					print "events: cancel click event!"
+					self.click_event_timer[channel].cancel()
+					del self.click_event_timer[channel]
+					self.last_triggered_event.update({channel: { 'time': now, 'status': 2}})
+					self.execute_callbacks(self.hold_callbacks_by_channel[channel])
+					print "events: triggered double click event at ".format(datetime.datetime.now())
+				else:
+					print "events: enqueued click event at {}".format(datetime.datetime.now())
+					self.click_event_timer.update({channel: Timer(0.4, self.click_trigger, [channel])})
+					self.click_event_timer[channel].start()
+
+	def click_trigger(self, channel):
+		now = datetime.datetime.now()
+		self.last_triggered_event.update({channel: { 'time': now, 'status': 0}})
+		self.execute_callbacks(self.click_callbacks_by_channel[channel])
+		del self.click_event_timer[channel]
+		print "events: triggered click event at {}".format(datetime.datetime.now())
 
 	def add_handler(self, button, handler = None, event = 'click'):
 		if button == 'a':
@@ -92,7 +107,7 @@ class button_handler(object):
 		list[index] = None
 
 	def terminate(self):
-		print "terminating buttons"
+		print "events: terminating buttons"
 		GPIO.cleanup()
 
 

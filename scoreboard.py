@@ -28,9 +28,11 @@ class scoreboard():
 				8: 'awesome',
 				9: 'blaster',
 				10: 'monster' }
-		self.bc.add_handler('a', self.button_a_onclick)
-		self.bc.add_handler('b', self.button_b_onclick)
-		self.bc.add_handler('c', self.button_c_onclick)
+		self.bc.add_handler('a', self.button_a_onclick, 'click')
+		self.bc.add_handler('a', self.button_a_onhold, 'hold')
+		self.bc.add_handler('b', self.button_b_onclick, 'click')
+		self.bc.add_handler('b', self.button_b_onhold, 'hold')
+		self.bc.add_handler('c', self.button_c_onclick, 'click')
 		self.gc.add_handler('victory', self.on_game_victory)
 		self.gc.add_handler('danger_zone', self.on_danger_zone)
 		self.gc.add_handler('first_blood', self.on_first_blood)
@@ -60,6 +62,12 @@ class scoreboard():
 			self.score_player.cancel()
 		self.gc.reset()
 
+	def button_a_onhold(self):
+		self.on_unscore('white')
+
+	def button_b_onhold(self):
+		self.on_unscore('black')
+
 	def on_score(self, label):
 		print 'goal player {}'.format(label)
 		self.ac.play("ding")
@@ -73,6 +81,12 @@ class scoreboard():
 			self.play_tano()
 		else:
 			self.play_combo()
+
+	def on_unscore(self, label):
+		print 'goal player {}'.format(label)
+		self.ac.play("ding")
+		self.play_score()
+		self.gc.unscore(label)
 
 	def on_game_victory(self, winner, loser):
 		self.ac.play("victory")

@@ -39,6 +39,10 @@ class game_controller(object):
 		elif is_combo_breaker:
 			self.execute_callbacks(self.combo_breaker_callbacks)
 
+	def unscore(self, player_label):
+		player = self.player1 if player_label == 'white' else self.player2
+		player.unscore()
+
 	def add_handler(self, event_name, handler = None):
 		callbacks = {	'victory': self.victory_callbacks,
 				'danger_zone': self.danger_zone_callbacks,
@@ -88,6 +92,10 @@ class player(object):
 	def score(self):
 		self.goal_counter += 1
 		self.combo_counter += 1
+
+	def unscore(self):
+		self.goal_counter -= 1
+		self.combo_counter -= 1
 
 	def show_score(self):
 		print "{}: score - {}: combos {}".format(self.label, self.goal_counter, self.combo_counter)
